@@ -1,0 +1,106 @@
+---
+title: "Herramienta Densidades"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(leaflet)
+library(shiny)
+library(sf)
+
+
+macros <- sf::st_read("input/mapas/macrodistrito_sur/macros.geojson") %>% 
+  filter(!MACRO_VIGE %in% c("HAMPATURI", "ZONGO"))
+
+fb_lp <- sf::st_read("input/mapas/fb_lp")
+fb_ea <- sf::st_read("input/mapas/fb_ea")
+
+manzanos_lp <- sf::st_read("input/mapas/manzanas_lp", stringsAsFactors = FALSE)
+manzanos_lp <- sf::st_transform(manzanos_lp, 4326)
+manzanos_lp$nombreciud <- "Nuestra Señora de La Paz"
+
+```
+
+NUESTRA SEÑORA DE LA PAZ
+================================================
+
+
+Inputs {.sidebar}
+-------------------------------------
+
+```{r}
+
+selectInput('macro', 'Macrodistrito:', c(unique(macros$MACRO_VIGE)), selected = "SAN ANTONIO")
+
+selectInput('eps', 'epsilon', choices = c(0.05, 0.075, 0.1, 0.15, 0.2, 0.25, 0.3), selected = 0.1)
+# selectInput('pts', 'Min. Puntos', choices = c(5, 10, 20, 40, 60, 80, 100), selected = 20)
+sliderInput("pts", label = "Min. Puntos:",
+            min = 10, max = 100, value = 20, step = 10)
+
+```
+
+
+Row 
+--------------------------------------
+
+### MACRO DISTRITO
+
+```{r}
+  
+  renderLeaflet({
+    
+    manzanos_macro <- st_intersection(st_buffer(manzanos_lp, dist = 0), 
+                                      st_buffer(macros %>% filter(MACRO_VIGE == input$macro), dist = 0))
+    fbcoord_macro <- st_intersection(fb_lp, st_buffer(macros %>% filter(MACRO_VIGE == input$macro), dist = 0))
+    
+    locs = dplyr::select((do.call(rbind, st_geometry(fbcoord_macro)) %>% 
+                            as_tibble() %>% setNames(c("lon","lat"))),lon, lat)
+    
+    locs.scaled = scale(locs,center = T,scale = T)
+    
+    db = dbscan::dbscan(locs.scaled, eps= input$eps, minPts = input$pts)
+    
+    
+    #Ploting DBSCAN results.
+    # factoextra::fviz_cluster(db,locs.scaled, stand = F,ellipse = T,geom = "point")
+    
+    
+    fb_cluster <- cbind(locs, cluster = db$cluster)
+    
+    categoria_pal <- colorFactor(c("#6a6e7a",colourvalues::colour_values(1:length(unique(db$cluster)), 
+                                                                         palette = colourvalues::get_palette("viridis")[70:256,])),
+                                 fb_cluster$cluster)
+    
+    
+    fb_cluster <- st_as_sf(fb_cluster, coords = c("lon","lat"), crs = 4326)
+    
+    head(fb_cluster,5)
+    
+    leaflet(options = leafletOptions(minZoom =  5, maxZoom = 16)) %>% 
+      addProviderTiles(providers$CartoDB.Positron, group = "mapa blanco") %>% 
+      addProviderTiles('Esri.WorldImagery', group = "mapa satelital") %>%
+      addCircles(data = fb_cluster, group = "Densidades",
+                 color = ~categoria_pal(fb_cluster$cluster)) %>% 
+      addPolygons(data = manzanos_macro, group = "Manzanos",
+                  stroke = T,
+                  weight = 1, opacity = 0.8, fillOpacity = 0, color = "#141414"
+                  ) %>%
+      addLayersControl(
+        baseGroups = c("mapa blanco", "mapa satelital"),
+        overlayGroups = c("Densidades", "Manzanos")
+        ,
+        options = layersControlOptions(collapsed = F))
+
+  
+})
+
+
+
+
+```
