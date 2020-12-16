@@ -43,6 +43,8 @@ selectInput('eps', 'epsilon', choices = c(0.05, 0.075, 0.1, 0.15, 0.2, 0.25, 0.3
 sliderInput("pts", label = "Min. Puntos:",
             min = 10, max = 100, value = 20, step = 10)
 
+actionButton("simulate", "Simular!")
+
 ```
 
 
@@ -53,34 +55,79 @@ Row
 
 ```{r}
   
+
+  manzanos_macro <- eventReactive(
+    input$simulate,{
+    st_intersection(st_buffer(manzanos_lp, dist = 0), 
+                    st_buffer(macros %>% filter(MACRO_VIGE == input$macro), dist = 0))
+  }) 
+  
+  
+  fbcoord_macro <- eventReactive(
+    input$simulate,{
+    st_intersection(fb_lp, st_buffer(macros %>% filter(MACRO_VIGE == input$macro), dist = 0))
+  })
+  
+  
+  epsilon <- eventReactive(
+    input$simulate,{
+    input$eps
+  })
+ 
+  puntos <- eventReactive(
+    input$simulate,{
+    input$pts
+  })
+      
+      
+
   renderLeaflet({
     
-    manzanos_macro <- st_intersection(st_buffer(manzanos_lp, dist = 0), 
-                                      st_buffer(macros %>% filter(MACRO_VIGE == input$macro), dist = 0))
-    fbcoord_macro <- st_intersection(fb_lp, st_buffer(macros %>% filter(MACRO_VIGE == input$macro), dist = 0))
+    # manzanos_macro <- st_intersection(st_buffer(manzanos_lp, dist = 0),
+    #                                   st_buffer(macros %>% filter(MACRO_VIGE == input$macro), dist = 0))
+    # 
+    # 
+    # db = dbscan::dbscan(scale(dplyr::select((do.call(rbind, st_geometry(st_intersection(fb_lp, st_buffer(macros %>% filter(MACRO_VIGE == input$macro), dist = 0)))) %>%
+    #                         as_tibble() %>% setNames(c("lon","lat"))),lon, lat),
+    #                     center = T,scale = T),
+    #                     eps= input$eps, minPts = input$pts)
+    # 
+    # 
+    # 
+    # fb_cluster <- cbind(dplyr::select((do.call(rbind, st_geometry(st_intersection(fb_lp, st_buffer(macros %>% filter(MACRO_VIGE == input$macro), dist = 0)))) %>%
+    #                         as_tibble() %>% setNames(c("lon","lat"))),lon, lat), 
+    #                     cluster = db$cluster)
+    # 
+    # categoria_pal <- colorFactor(c("#6a6e7a",colourvalues::colour_values(1:length(unique(db$cluster)),
+    #                                                                      palette = colourvalues::get_palette("viridis")[70:256,])),
+    #                              fb_cluster$cluster)
+    # 
+    # 
+    # fb_cluster <- st_as_sf(fb_cluster, coords = c("lon","lat"), crs = 4326)
     
-    locs = dplyr::select((do.call(rbind, st_geometry(fbcoord_macro)) %>% 
-                            as_tibble() %>% setNames(c("lon","lat"))),lon, lat)
-    
-    locs.scaled = scale(locs,center = T,scale = T)
-    
-    db = dbscan::dbscan(locs.scaled, eps= input$eps, minPts = input$pts)
     
     
-    #Ploting DBSCAN results.
-    # factoextra::fviz_cluster(db,locs.scaled, stand = F,ellipse = T,geom = "point")
-    
-    
-    fb_cluster <- cbind(locs, cluster = db$cluster)
-    
-    categoria_pal <- colorFactor(c("#6a6e7a",colourvalues::colour_values(1:length(unique(db$cluster)), 
+
+   categoria_pal <- colorFactor(c("#6a6e7a",colourvalues::colour_values(1:length(unique(dbscan::dbscan(scale(dplyr::select((do.call(rbind, st_geometry(fbcoord_macro())) %>%
+                                                                                                                               as_tibble() %>% setNames(c("lon","lat"))),lon, lat),
+                                                                                                              center = T,scale = T),
+                                                                                                        eps= epsilon(), minPts = puntos()) %>% .$cluster)),
                                                                          palette = colourvalues::get_palette("viridis")[70:256,])),
-                                 fb_cluster$cluster)
+                                 cbind(dplyr::select((do.call(rbind, st_geometry(fbcoord_macro())) %>%
+                                                        as_tibble() %>% setNames(c("lon","lat"))),lon, lat),
+                                       cluster = dbscan::dbscan(scale(dplyr::select((do.call(rbind, st_geometry(fbcoord_macro())) %>%
+                                                                                       as_tibble() %>% setNames(c("lon","lat"))),lon, lat),
+                                                                      center = T,scale = T),
+                                                                eps= epsilon(), minPts = puntos()) %>% .$cluster) %>% .$cluster)
     
+    fb_cluster <- st_as_sf(cbind(dplyr::select((do.call(rbind, st_geometry(fbcoord_macro())) %>%
+                                                  as_tibble() %>% setNames(c("lon","lat"))),lon, lat),
+                                 cluster = dbscan::dbscan(scale(dplyr::select((do.call(rbind, st_geometry(fbcoord_macro())) %>%
+                                                                                 as_tibble() %>% setNames(c("lon","lat"))),lon, lat),
+                                                                center = T,scale = T),
+                                                          eps= epsilon(), minPts = puntos()) %>% .$cluster),
+                           coords = c("lon","lat"), crs = 4326)
     
-    fb_cluster <- st_as_sf(fb_cluster, coords = c("lon","lat"), crs = 4326)
-    
-    head(fb_cluster,5)
     
     leaflet(options = leafletOptions(minZoom =  5, maxZoom = 16)) %>% 
       addProviderTiles(providers$CartoDB.Positron, group = "mapa blanco") %>% 
