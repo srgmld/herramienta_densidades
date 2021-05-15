@@ -1,0 +1,14 @@
+name: herramienta_densidades
+title: herramienta_densidades
+username:
+account: datapaip
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4134559
+bundleId: 4600444
+url: https://datapaip.shinyapps.io/herramienta_densidades/
+when: 1621049337.61964
+lastSyncTime: 1621049337.61964
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .gitattributes|.RData|app_densidad.html|herramienta_densidad.Rmd|herramienta_densidades.zip
