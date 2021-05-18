@@ -3,6 +3,7 @@ library(shiny)
 library(tidyverse)
 library(leaflet)
 library(sf)
+library(shinycssloaders)
 
 macros <- sf::st_read("input/mapas/macrodistrito_sur/macros.geojson") %>% 
   filter(!MACRO_VIGE %in% c("HAMPATURI", "ZONGO"))
@@ -17,6 +18,13 @@ manzanos_lp$nombreciud <- "Nuestra Señora de La Paz"
 
 ui <- fluidPage(
   fluidRow(
+    h1("Urban Density Clustering Tool", align = "left"),
+    h5("Step 1: Select the desired neighborhood", align = "left"),
+    h5("Step 2: Define epsilon as a clustering distance", align = "left"),
+    h5("Step 3: Define the minimum points (buldings) to cluster", align = "left"),
+    h5("Step 4: Run the app", align = "left")
+  ),
+  fluidRow(
     column(4,
            selectInput('macro', 'Macrodistrito:', c(unique(macros$MACRO_VIGE)), selected = "SAN ANTONIO")),
     column(4,
@@ -29,9 +37,11 @@ ui <- fluidPage(
     column(4,
            actionButton("simulate", "Simular!"))
   ),
+  br(),
   fluidRow(
     column(12,
-           leafletOutput("map",width = "100%", height = 1400))
+           withSpinner(leafletOutput("map",width = "100%", height = 800))
+           )
   )
 )
 
@@ -69,28 +79,9 @@ server <- function(input, output, session) {
   output$map <- renderLeaflet({
     
     
-    # fbcoord_macro <- st_intersection(fb_lp, st_buffer(macros %>% filter(MACRO_VIGE == input$macro), dist = 0))
-    # 
-    # locs = dplyr::select((do.call(rbind, st_geometry(fbcoord_macro)) %>%
-    #                         as_tibble() %>% setNames(c("lon","lat"))),lon, lat)
-    # 
-    # locs.scaled = scale(locs,center = T,scale = T)
-    # 
-    # db = dbscan::dbscan(locs.scaled, eps= input$eps, minPts = input$pts)
-    # 
-    # 
-    # fb_cluster <- cbind(locs, cluster = db$cluster)
-    # 
-    # categoria_pal <- colorFactor(c("#6a6e7a",colourvalues::colour_values(1:length(unique(db$cluster)),
-    #                                                                      palette = colourvalues::get_palette("viridis")[70:256,])),
-    #                              fb_cluster$cluster)
-    # 
-    # fb_cluster <- st_as_sf(fb_cluster, coords = c("lon","lat"), crs = 4326)
+
     
-    
-    # fbcoord_macro <- st_intersection(fb_lp, st_buffer(macros %>% filter(MACRO_VIGE == input$macro), dist = 0))
-    
-    
+
 
     categoria_pal <- colorFactor(c("#6a6e7a",colourvalues::colour_values(1:length(unique(dbscan::dbscan(scale(dplyr::select((do.call(rbind, st_geometry(fbcoord_macro())) %>%
                                                                                                                                as_tibble() %>% setNames(c("lon","lat"))),lon, lat),
@@ -126,6 +117,7 @@ server <- function(input, output, session) {
         overlayGroups = c("Densidades", "Manzanos")
         ,
         options = layersControlOptions(collapsed = F))
+    
     
     
   })
